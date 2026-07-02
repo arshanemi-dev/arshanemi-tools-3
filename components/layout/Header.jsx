@@ -26,11 +26,11 @@ export default function Header({ authUser }) {
     : BASE_NAV
 
   return (
-    <header className="sticky top-0 z-30 h-14 flex items-center border-b border-[var(--lt-divider)] bg-[var(--lt-bg-base)]/90 backdrop-blur-md px-4">
+    <header className="sticky top-0 z-30 h-14 flex items-center border-b px-4" style={{ borderColor: 'var(--lt-divider)', backgroundColor: 'color-mix(in srgb, var(--lt-bg-base) 90%, transparent)', backdropFilter: 'blur(12px)' }}>
       <div className="flex items-center gap-3 flex-1">
-        <Link href="/settings" className="flex items-center gap-2 group">
-          <span className="font-semibold text-[var(--lt-text-primary)] text-sm tracking-tight">
-            ArshaNemi<span className="text-[var(--lt-accent)]"> Tools</span>
+        <Link href="/bg-remover" className="flex items-center gap-2">
+          <span className="font-semibold text-sm tracking-tight" style={{ color: 'var(--lt-text-primary)' }}>
+            ArshaNemi<span style={{ color: 'var(--lt-accent)' }}> MultiImage Background Remover</span>
           </span>
         </Link>
       </div>
@@ -49,26 +49,26 @@ export default function Header({ authUser }) {
                 : 'text-[var(--lt-text-subtle)] hover:text-[var(--lt-text-primary)] hover:bg-[var(--lt-card-hover)]'
             )}
           >
-            {Icon ? <Icon size={14} /> : null}
+            {Icon && <Icon size={14} />}
             <span className="hidden sm:inline">{label}</span>
           </Link>
         ))}
 
-        {/* Logged-in user pill + logout (only in connected mode) */}
         {!IS_CONNECT && authUser && (
-          <div className="flex items-center gap-2 ml-2 pl-2 border-l border-[var(--lt-divider)]">
-            <div className="flex items-center gap-2 px-2.5 py-1.5 bg-[var(--lt-card)] border border-[var(--lt-divider)] rounded-[8px]">
-              <div className="w-5 h-5 rounded-full bg-[var(--lt-accent)] flex items-center justify-center text-[9px] font-bold text-white shrink-0">
+          <div className="flex items-center gap-2 ml-2 pl-2" style={{ borderLeft: '1px solid var(--lt-divider)' }}>
+            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-[8px] border" style={{ backgroundColor: 'var(--lt-card)', borderColor: 'var(--lt-divider)' }}>
+              <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0" style={{ backgroundColor: 'var(--lt-accent)' }}>
                 {(authUser.name?.[0] ?? authUser.email?.[0] ?? '?').toUpperCase()}
               </div>
-              <span className="text-xs font-medium text-[var(--lt-text-primary)] hidden sm:block max-w-[100px] truncate">
+              <span className="text-xs font-medium hidden sm:block max-w-[100px] truncate" style={{ color: 'var(--lt-text-primary)' }}>
                 {authUser.name || authUser.email}
               </span>
             </div>
             <button
               onClick={handleLogout}
               title="Logout"
-              className="p-1.5 text-[var(--lt-text-subtle)] hover:text-[var(--lt-danger-text)] hover:bg-[var(--lt-danger-bg)] rounded-[6px] transition-colors"
+              className="p-1.5 rounded-[6px] transition-colors"
+              style={{ color: 'var(--lt-text-subtle)' }}
             >
               <LogOut size={14} />
             </button>

@@ -7,8 +7,8 @@ import { ThemeProvider } from '@/context/ThemeContext'
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
 export const metadata = {
-  title: 'ArshaNemi Tools',
-  description: 'ArshaNemi admin tools',
+  title: 'ArshaNemi MultiImage Background Remover',
+  description: 'Remove backgrounds, change canvas colors, resize and export images in HD quality.',
 }
 
 export default function RootLayout({ children }) {

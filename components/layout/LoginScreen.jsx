@@ -44,7 +44,7 @@ export default function LoginScreen({ onLogin }) {
         {/* Logo */}
         <div className="flex items-center justify-center gap-3 mb-8">
           <span className="text-xl font-bold text-[var(--lt-text-primary)]">
-            ArshaNemi<span className="text-[var(--lt-accent)]"> Tools</span>
+            ArshaNemi<span className="text-[var(--lt-accent)]"> MultiImage Background Remover</span>
           </span>
         </div>
 
