@@ -113,6 +113,7 @@ export default function BgRemoverPanel({
   function applySize() {
     setCanvasW(tempW)
     setCanvasH(tempH)
+    onPresetChange('custom')
     setShowApply(false)
   }
 
@@ -157,6 +158,18 @@ export default function BgRemoverPanel({
           {/* Color swatches */}
           {bgTab === 'color' && (
             <div className="flex flex-wrap gap-2">
+              {/* Transparent swatch */}
+              <button onClick={() => setBgColor('transparent')}
+                className="w-8 h-8 rounded-full shrink-0 overflow-hidden transition-all hover:scale-110"
+                title="Transparent"
+                style={{
+                  backgroundImage: 'repeating-conic-gradient(#b0b0b0 0% 25%, #ffffff 0% 50%)',
+                  backgroundSize: '8px 8px',
+                  outline: bgColor === 'transparent' ? '2.5px solid var(--lt-accent)' : '2.5px solid transparent',
+                  outlineOffset: 2,
+                  border: '1px solid var(--lt-divider)',
+                }}
+              />
               {BG_COLORS.map(hex => (
                 <button key={hex} onClick={() => setBgColor(hex)}
                   className="w-8 h-8 rounded-full shrink-0 transition-all hover:scale-110"
