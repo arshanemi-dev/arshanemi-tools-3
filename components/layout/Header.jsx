@@ -26,16 +26,20 @@ export default function Header({ authUser }) {
     : BASE_NAV
 
   return (
-    <header className="sticky top-0 z-30 h-14 flex items-center border-b px-4" style={{ borderColor: 'var(--lt-divider)', backgroundColor: 'color-mix(in srgb, var(--lt-bg-base) 90%, transparent)', backdropFilter: 'blur(12px)' }}>
-      <div className="flex items-center gap-3 flex-1">
-        <Link href="/bg-remover" className="flex items-center gap-2">
-          <span className="font-semibold text-sm tracking-tight" style={{ color: 'var(--lt-text-primary)' }}>
-            ArshaNemi<span style={{ color: 'var(--lt-accent)' }}> MultiImage Background Remover</span>
+    <header className="sticky top-0 z-30 h-14 flex items-center gap-2 border-b px-3 sm:px-4" style={{ borderColor: 'var(--lt-divider)', backgroundColor: 'color-mix(in srgb, var(--lt-bg-base) 90%, transparent)', backdropFilter: 'blur(12px)' }}>
+      <div className="flex items-center gap-3 flex-1 min-w-0">
+        <Link href="/bg-remover" className="flex items-center gap-2 min-w-0">
+          <span className="font-semibold text-sm tracking-tight truncate" style={{ color: 'var(--lt-text-primary)' }}>
+            ArshaNemi
+            <span style={{ color: 'var(--lt-accent)' }}>
+              <span className="hidden md:inline"> MultiImage Background Remover</span>
+              <span className="hidden sm:inline md:hidden"> BG Remover</span>
+            </span>
           </span>
         </Link>
       </div>
 
-      <nav className="flex items-center gap-1">
+      <nav className="flex items-center gap-1 shrink-0">
         {nav.map(({ href, label, icon: Icon, external }) => (
           <Link
             key={href}
@@ -43,7 +47,7 @@ export default function Header({ authUser }) {
             title={label}
             {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
             className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-sm transition-colors',
+              'flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-[6px] text-sm transition-colors',
               !external && pathname?.startsWith(href)
                 ? 'text-[var(--lt-accent-light)] bg-[var(--lt-accent-muted)]'
                 : 'text-[var(--lt-text-subtle)] hover:text-[var(--lt-text-primary)] hover:bg-[var(--lt-card-hover)]'
@@ -55,8 +59,8 @@ export default function Header({ authUser }) {
         ))}
 
         {!IS_CONNECT && authUser && (
-          <div className="flex items-center gap-2 ml-2 pl-2" style={{ borderLeft: '1px solid var(--lt-divider)' }}>
-            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-[8px] border" style={{ backgroundColor: 'var(--lt-card)', borderColor: 'var(--lt-divider)' }}>
+          <div className="flex items-center gap-1.5 sm:gap-2 ml-1 sm:ml-2 pl-1 sm:pl-2" style={{ borderLeft: '1px solid var(--lt-divider)' }}>
+            <div className="flex items-center gap-2 px-2 sm:px-2.5 py-1.5 rounded-[8px] border" style={{ backgroundColor: 'var(--lt-card)', borderColor: 'var(--lt-divider)' }}>
               <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0" style={{ backgroundColor: 'var(--lt-accent)' }}>
                 {(authUser.name?.[0] ?? authUser.email?.[0] ?? '?').toUpperCase()}
               </div>

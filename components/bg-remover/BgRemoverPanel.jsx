@@ -123,11 +123,11 @@ export default function BgRemoverPanel({
     setShowApply(false)
   }
 
-  const inputCls = 'flex-1 text-center text-sm px-2 py-2 rounded-[8px] focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none'
+  const inputCls = 'flex-1 min-w-0 text-center text-sm px-2 py-2 rounded-[8px] focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none'
 
   return (
-    <div className="w-[272px] shrink-0 h-full overflow-y-auto"
-      style={{ borderRight: '1px solid var(--lt-divider)', backgroundColor: 'var(--lt-surface)' }}>
+    <div className="w-full h-full overflow-y-auto"
+      style={{ backgroundColor: 'var(--lt-surface)' }}>
       <div className="p-4 flex flex-col gap-5">
 
         {/* ── Background ─────────────────────────────────── */}

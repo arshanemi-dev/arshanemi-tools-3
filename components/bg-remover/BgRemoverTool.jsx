@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Upload, Download, Loader2, ImageIcon } from 'lucide-react'
+import { Upload, Download, Loader2, ImageIcon, SlidersHorizontal, X } from 'lucide-react'
 import BgRemoverPanel from './BgRemoverPanel'
 import ImageQueue from './ImageQueue'
+import { cn } from '@/lib/utils'
 
 const PRESET_DIMS = {
   square:    { w: 1080, h: 1080 },
@@ -32,6 +33,10 @@ export default function BgRemoverTool() {
   const [hdValue,      setHdValue]      = useState(50)
   const [fillToCanvas, setFillToCanvas] = useState(false)
   const [origDims,     setOrigDims]     = useState({ w: 1080, h: 1080 })
+
+  // Mobile drawer visibility (left settings panel / right image queue)
+  const [showPanel, setShowPanel] = useState(false)
+  const [showQueue, setShowQueue] = useState(false)
 
   const workerRef = useRef(null)
   const canvasRef = useRef(null)
@@ -318,38 +323,77 @@ export default function BgRemoverTool() {
 
   const showCheckerboard = bgColor === 'transparent' && bgTab === 'color'
 
-  return (
-    <div className="flex h-full overflow-hidden">
+  function openPanel() { setShowQueue(false); setShowPanel(true) }
+  function openQueue() { setShowPanel(false); setShowQueue(true) }
+  function closeDrawers() { setShowPanel(false); setShowQueue(false) }
 
-      <BgRemoverPanel
-        bgTab={bgTab}               setBgTab={setBgTab}
-        bgColor={bgColor}           setBgColor={setBgColor}
-        activeBgId={activeBgId}
-        resizePreset={resizePreset}
-        canvasW={canvasW}           setCanvasW={setCanvasW}
-        canvasH={canvasH}           setCanvasH={setCanvasH}
-        hdValue={hdValue}           setHdValue={setHdValue}
-        fillToCanvas={fillToCanvas} setFillToCanvas={setFillToCanvas}
-        origDims={origDims}
-        onPresetChange={handlePresetChange}
-        onSelectSampleBg={handleSelectSampleBg}
-        onUploadBgImage={handleUploadBgImage}
-      />
+  return (
+    <div className="relative flex h-full overflow-hidden">
+
+      {/* Mobile drawer backdrop */}
+      {(showPanel || showQueue) && (
+        <div className="fixed inset-0 z-40 bg-black/60 lg:hidden" onClick={closeDrawers} />
+      )}
+
+      {/* ── Background/Resize/HD panel — desktop sidebar, mobile slide-in drawer ── */}
+      <div
+        className={cn(
+          'fixed inset-y-0 left-0 z-50 w-[85vw] max-w-[280px] shadow-2xl transition-transform duration-300 ease-out',
+          'lg:static lg:z-auto lg:w-[272px] lg:max-w-none lg:shrink-0 lg:translate-x-0 lg:shadow-none lg:border-r lg:transition-none',
+          showPanel ? 'translate-x-0' : '-translate-x-full'
+        )}
+        style={{ borderColor: 'var(--lt-divider)' }}
+      >
+        <BgRemoverPanel
+          bgTab={bgTab}               setBgTab={setBgTab}
+          bgColor={bgColor}           setBgColor={setBgColor}
+          activeBgId={activeBgId}
+          resizePreset={resizePreset}
+          canvasW={canvasW}           setCanvasW={setCanvasW}
+          canvasH={canvasH}           setCanvasH={setCanvasH}
+          hdValue={hdValue}           setHdValue={setHdValue}
+          fillToCanvas={fillToCanvas} setFillToCanvas={setFillToCanvas}
+          origDims={origDims}
+          onPresetChange={handlePresetChange}
+          onSelectSampleBg={handleSelectSampleBg}
+          onUploadBgImage={handleUploadBgImage}
+        />
+      </div>
 
       {/* ── Center + right ── */}
-      <div className="flex-1 flex flex-col overflow-hidden" style={{ backgroundColor: 'var(--lt-bg-base)' }}>
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0" style={{ backgroundColor: 'var(--lt-bg-base)' }}>
 
         {/* Toolbar */}
-        <div className="shrink-0 flex items-center gap-2 px-4 py-3"
+        <div className="shrink-0 flex flex-wrap items-center gap-2 px-3 sm:px-4 py-3"
           style={{ borderBottom: '1px solid var(--lt-divider)', backgroundColor: 'var(--lt-surface)' }}>
 
+          {/* Mobile-only: open settings panel / image queue drawers */}
+          <div className="flex items-center gap-1.5 lg:hidden">
+            <button
+              onClick={openPanel}
+              className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold rounded-full transition-opacity hover:opacity-90"
+              style={{ backgroundColor: 'var(--lt-card)', border: '1px solid var(--lt-divider)', color: 'var(--lt-text-primary)' }}
+            >
+              <SlidersHorizontal size={13} />
+              Edit
+            </button>
+            <button
+              onClick={openQueue}
+              className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold rounded-full transition-opacity hover:opacity-90"
+              style={{ backgroundColor: 'var(--lt-card)', border: '1px solid var(--lt-divider)', color: 'var(--lt-text-primary)' }}
+            >
+              <ImageIcon size={13} />
+              {images.length > 0 ? images.length : 'Images'}
+            </button>
+          </div>
+
           {modelMsg ? (
-            <span className="flex items-center gap-2 text-xs mr-auto" style={{ color: 'var(--lt-text-muted)' }}>
+            <span className="order-last sm:order-none w-full sm:w-auto flex items-center gap-2 text-xs sm:mr-auto" style={{ color: 'var(--lt-text-muted)' }}>
               <Loader2 size={12} className="animate-spin" />
               {modelMsg}
             </span>
           ) : (
-            <span className="mr-auto text-xs font-semibold" style={{ color: 'var(--lt-text-subtle)' }}>
+            <span className="order-last sm:order-none w-full sm:w-auto sm:mr-auto text-xs font-semibold" style={{ color: 'var(--lt-text-subtle)' }}>
               {images.length > 0
                 ? `${images.length} image${images.length > 1 ? 's' : ''} · ${doneCount} done`
                 : 'No images yet'}
@@ -357,22 +401,22 @@ export default function BgRemoverTool() {
           )}
 
           <label
-            className="flex items-center gap-2 px-4 py-2 text-white text-sm font-semibold rounded-full cursor-pointer hover:opacity-90 transition-opacity"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 text-white text-sm font-semibold rounded-full cursor-pointer hover:opacity-90 transition-opacity"
             style={{ backgroundColor: 'var(--lt-success)' }}
           >
             <Upload size={14} />
-            Upload Images
+            <span className="hidden sm:inline">Upload Images</span>
             <input type="file" accept="image/*" multiple className="sr-only" onChange={handleFilesChange} />
           </label>
 
           <button
             onClick={handleRemoveAll}
             disabled={pendingCount === 0 || processingAny}
-            className="flex items-center gap-2 px-4 py-2 text-white text-sm font-semibold rounded-full hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 text-white text-sm font-semibold rounded-full hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ backgroundColor: '#3b68f9' }}
           >
             {processingAny ? <Loader2 size={14} className="animate-spin" /> : null}
-            Remove All BG
+            <span className="hidden sm:inline">Remove All BG</span>
             {pendingCount > 0 && (
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
                 style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>
@@ -384,11 +428,11 @@ export default function BgRemoverTool() {
           <button
             onClick={handleDownloadAll}
             disabled={doneCount === 0}
-            className="flex items-center gap-2 px-4 py-2 text-white text-sm font-semibold rounded-full hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 text-white text-sm font-semibold rounded-full hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ backgroundColor: 'var(--lt-accent)' }}
           >
             <Download size={14} />
-            Download All
+            <span className="hidden sm:inline">Download All</span>
             {doneCount > 0 && (
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
                 style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>
@@ -402,7 +446,7 @@ export default function BgRemoverTool() {
         <div className="flex-1 flex overflow-hidden">
 
           {/* ── Canvas preview ── */}
-          <div className="flex-1 flex items-center justify-center p-8 overflow-hidden">
+          <div className="flex-1 min-w-0 flex items-center justify-center p-4 sm:p-6 lg:p-8 overflow-hidden">
             {!selectedImage ? (
               <div className="flex flex-col items-center gap-4">
                 <div className="w-24 h-24 rounded-2xl flex items-center justify-center"
@@ -435,7 +479,7 @@ export default function BgRemoverTool() {
                   ref={canvasRef}
                   style={{
                     maxWidth: '100%',
-                    maxHeight: 'calc(100vh - 140px)',
+                    maxHeight: 'calc(100vh - 190px)',
                     display: 'block',
                     borderRadius: 10,
                     boxShadow: '0 20px 60px -10px rgba(0,0,0,0.45)',
@@ -450,25 +494,41 @@ export default function BgRemoverTool() {
             )}
           </div>
 
-          {/* ── Image queue sidebar ── */}
-          <div className="w-[220px] shrink-0 flex flex-col overflow-hidden"
-            style={{ borderLeft: '1px solid var(--lt-divider)', backgroundColor: 'var(--lt-surface)' }}>
+          {/* ── Image queue: desktop sidebar, mobile slide-in drawer ── */}
+          <div
+            className={cn(
+              'fixed inset-y-0 right-0 z-50 w-[85vw] max-w-[280px] flex flex-col overflow-hidden shadow-2xl transition-transform duration-300 ease-out',
+              'lg:static lg:z-auto lg:w-[220px] lg:max-w-none lg:shrink-0 lg:translate-x-0 lg:shadow-none lg:transition-none',
+              showQueue ? 'translate-x-0' : 'translate-x-full'
+            )}
+            style={{ borderLeft: '1px solid var(--lt-divider)', backgroundColor: 'var(--lt-surface)' }}
+          >
             <div className="px-3 py-2.5 shrink-0 flex items-center justify-between"
               style={{ borderBottom: '1px solid var(--lt-divider)' }}>
               <span className="text-[11px] font-bold uppercase tracking-wider"
                 style={{ color: 'var(--lt-text-subtle)' }}>
                 Images
               </span>
-              {images.length > 0 && (
-                <span className="text-[10px]" style={{ color: 'var(--lt-text-subtle)' }}>
-                  {images.length}
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                {images.length > 0 && (
+                  <span className="text-[10px]" style={{ color: 'var(--lt-text-subtle)' }}>
+                    {images.length}
+                  </span>
+                )}
+                <button
+                  onClick={() => setShowQueue(false)}
+                  className="lg:hidden p-1 rounded-[5px] transition-colors"
+                  style={{ color: 'var(--lt-text-subtle)' }}
+                  title="Close"
+                >
+                  <X size={14} />
+                </button>
+              </div>
             </div>
             <ImageQueue
               images={images}
               selectedId={selectedId}
-              onSelect={setSelectedId}
+              onSelect={(id) => { setSelectedId(id); setShowQueue(false) }}
               onRemove={handleRemoveImage}
               onDownload={handleDownloadImage}
               onProcess={handleProcessImage}
