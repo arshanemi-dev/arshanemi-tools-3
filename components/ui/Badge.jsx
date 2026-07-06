@@ -6,6 +6,7 @@ const variants = {
   success: 'bg-[var(--lt-success-bg)] text-[var(--lt-success)] border border-[var(--lt-success)]/30',
   warning: 'bg-[var(--lt-warning-bg)] text-[var(--lt-warning)] border border-[var(--lt-warning)]/30',
   danger:  'bg-[var(--lt-danger-bg)] text-[var(--lt-danger-text)] border border-[var(--lt-danger-text)]/30',
+  premium: 'bg-amber-500/15 text-amber-400 border border-amber-500/30',
 }
 
 export default function Badge({ children, variant = 'default', className }) {

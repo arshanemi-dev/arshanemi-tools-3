@@ -5,6 +5,8 @@ import { Upload, Download, Loader2, ImageIcon, SlidersHorizontal, X } from 'luci
 import BgRemoverPanel from './BgRemoverPanel'
 import ImageQueue from './ImageQueue'
 import { cn } from '@/lib/utils'
+import { useProviderStatus } from '@/hooks/useProviderStatus'
+import { friendlyMessageFor } from '@/lib/bgRemoveMessages'
 
 const PRESET_DIMS = {
   square:    { w: 1080, h: 1080 },
@@ -19,6 +21,8 @@ export default function BgRemoverTool() {
   const [images,     setImages]     = useState([])
   const [modelMsg,   setModelMsg]   = useState('')
   const [selectedId, setSelectedId] = useState(null)
+  const [tier,       setTier]       = useState('normal')
+  const providerStatus = useProviderStatus()
   // drawTick bumps when images finish loading so redraw fires
   const [drawTick,   setDrawTick]   = useState(0)
 
@@ -127,11 +131,11 @@ export default function BgRemoverTool() {
           ))
           break
         case 'done':
-          setImages(prev => prev.map(img =>
-            img.id === data.id
-              ? { ...img, status: 'done', processedUrl: data.url, progress: '' }
-              : img
-          ))
+          setImages(prev => prev.map(img => {
+            if (img.id !== data.id) return img
+            if (img.processedUrl?.startsWith('blob:')) URL.revokeObjectURL(img.processedUrl)
+            return { ...img, status: 'done', processedUrl: data.url, progress: '' }
+          }))
           setModelMsg('')
           break
         case 'error':
@@ -193,31 +197,86 @@ export default function BgRemoverTool() {
 
   // ── Remove all backgrounds ─────────────────────────────────────────────────
   function handleRemoveAll() {
-    const worker = workerRef.current
-    if (!worker) return
-    setImages(prev => {
-      const eligible = prev.filter(img => img.status === 'pending' || img.status === 'error')
-      eligible.forEach(img => worker.postMessage({ id: img.id, url: img.originalUrl }))
-      return prev.map(img =>
-        eligible.some(e => e.id === img.id)
-          ? { ...img, status: 'processing', progress: 'Queued…' }
-          : img
-      )
-    })
+    if (tier === 'normal') {
+      const worker = workerRef.current
+      if (!worker) return
+      setImages(prev => {
+        const eligible = prev.filter(img => img.status === 'pending' || img.status === 'error')
+        eligible.forEach(img => worker.postMessage({ id: img.id, url: img.originalUrl }))
+        return prev.map(img =>
+          eligible.some(e => e.id === img.id)
+            ? { ...img, status: 'processing', progress: 'Queued…' }
+            : img
+        )
+      })
+      return
+    }
+
+    if (!providerStatus[tier]) return
+    const eligible = images.filter(img => img.status === 'pending' || img.status === 'error')
+    if (eligible.length) runServerTierQueue(eligible, tier)
   }
 
   // ── Process single image ───────────────────────────────────────────────────
   function handleProcessImage(id) {
-    const worker = workerRef.current
-    if (!worker) return
-    setImages(prev => {
-      const img = prev.find(i => i.id === id)
-      if (!img || (img.status !== 'pending' && img.status !== 'error')) return prev
-      worker.postMessage({ id: img.id, url: img.originalUrl })
-      return prev.map(i =>
-        i.id === id ? { ...i, status: 'processing', progress: 'Queued…', error: '' } : i
-      )
-    })
+    if (tier === 'normal') {
+      const worker = workerRef.current
+      if (!worker) return
+      setImages(prev => {
+        const img = prev.find(i => i.id === id)
+        if (!img || (img.status !== 'pending' && img.status !== 'error')) return prev
+        worker.postMessage({ id: img.id, url: img.originalUrl })
+        return prev.map(i =>
+          i.id === id ? { ...i, status: 'processing', progress: 'Queued…', error: '' } : i
+        )
+      })
+      return
+    }
+
+    if (!providerStatus[tier]) return
+    const img = images.find(i => i.id === id)
+    if (!img || (img.status !== 'pending' && img.status !== 'error')) return
+    runServerTierQueue([img], tier)
+  }
+
+  // ── Server-tier (Medium/Advanced/Pro) sequential processing ────────────────
+  async function processImageViaProvider(img, tierKey) {
+    setImages(prev => prev.map(i =>
+      i.id === img.id ? { ...i, status: 'processing', progress: 'Uploading…', error: '' } : i
+    ))
+
+    try {
+      const srcBlob = await (await fetch(img.originalUrl)).blob()
+      const form = new FormData()
+      form.append('image', srcBlob, img.name)
+
+      const res = await fetch(`/api/bg-remove/${tierKey}`, { method: 'POST', body: form })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(friendlyMessageFor(data.code) || data.error || 'Background removal failed')
+      }
+
+      const url = URL.createObjectURL(await res.blob())
+      setImages(prev => prev.map(i => {
+        if (i.id !== img.id) return i
+        if (i.processedUrl?.startsWith('blob:')) URL.revokeObjectURL(i.processedUrl)
+        return { ...i, status: 'done', processedUrl: url, progress: '' }
+      }))
+    } catch (err) {
+      setImages(prev => prev.map(i =>
+        i.id === img.id ? { ...i, status: 'error', error: err.message, progress: '' } : i
+      ))
+    }
+  }
+
+  async function runServerTierQueue(eligible, tierKey) {
+    setImages(prev => prev.map(img =>
+      eligible.some(e => e.id === img.id) ? { ...img, status: 'processing', progress: 'Queued…' } : img
+    ))
+    for (const img of eligible) {
+      await processImageViaProvider(img, tierKey)
+    }
   }
 
   // ── Canvas compositing for download ───────────────────────────────────────
@@ -345,6 +404,8 @@ export default function BgRemoverTool() {
         style={{ borderColor: 'var(--lt-divider)' }}
       >
         <BgRemoverPanel
+          tier={tier}                 setTier={setTier}
+          providerStatus={providerStatus}
           bgTab={bgTab}               setBgTab={setBgTab}
           bgColor={bgColor}           setBgColor={setBgColor}
           activeBgId={activeBgId}
