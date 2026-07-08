@@ -2,7 +2,6 @@
 
 import { useState, useRef } from 'react'
 import { CloudUpload, Lock, Unlock } from 'lucide-react'
-import TierSelector from './TierSelector'
 
 const BG_COLORS = [
   '#ffffff', '#9ca3af', '#7c3aed', '#f59e0b',
@@ -67,7 +66,6 @@ function HdBadge() {
 }
 
 export default function BgRemoverPanel({
-  tier, setTier, providerStatus,
   bgTab, setBgTab,
   bgColor, setBgColor,
   activeBgId,
@@ -131,11 +129,6 @@ export default function BgRemoverPanel({
     <div className="w-full h-full overflow-y-auto"
       style={{ backgroundColor: 'var(--lt-surface)' }}>
       <div className="p-4 flex flex-col gap-5">
-
-        {/* ── Quality tier ───────────────────────────────── */}
-        <TierSelector tier={tier} setTier={setTier} status={providerStatus} />
-
-        <div className="h-px" style={{ backgroundColor: 'var(--lt-divider)' }} />
 
         {/* ── Background ─────────────────────────────────── */}
         <section className="flex flex-col gap-3">

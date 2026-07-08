@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
-import { Upload, Download, Loader2, ImageIcon, SlidersHorizontal, X } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Upload, Download, Loader2, SlidersHorizontal, Wand2 } from 'lucide-react'
 import BgRemoverPanel from './BgRemoverPanel'
 import ImageQueue from './ImageQueue'
+import TierSelector from './TierSelector'
 import { cn } from '@/lib/utils'
 import { useProviderStatus } from '@/hooks/useProviderStatus'
 import { friendlyMessageFor } from '@/lib/bgRemoveMessages'
@@ -18,13 +19,11 @@ let _idCounter = 0
 function nextId() { return ++_idCounter }
 
 export default function BgRemoverTool() {
-  const [images,     setImages]     = useState([])
-  const [modelMsg,   setModelMsg]   = useState('')
-  const [selectedId, setSelectedId] = useState(null)
-  const [tier,       setTier]       = useState('normal')
+  const [images,      setImages]      = useState([])
+  const [modelMsg,    setModelMsg]    = useState('')
+  const [selectedIds, setSelectedIds] = useState(() => new Set())
+  const [tier,        setTier]        = useState('normal')
   const providerStatus = useProviderStatus()
-  // drawTick bumps when images finish loading so redraw fires
-  const [drawTick,   setDrawTick]   = useState(0)
 
   // Panel / download settings
   const [bgTab,        setBgTab]        = useState('color')
@@ -38,78 +37,19 @@ export default function BgRemoverTool() {
   const [fillToCanvas, setFillToCanvas] = useState(false)
   const [origDims,     setOrigDims]     = useState({ w: 1080, h: 1080 })
 
-  // Mobile drawer visibility (left settings panel / right image queue)
+  // Mobile drawer visibility (left settings panel)
   const [showPanel, setShowPanel] = useState(false)
-  const [showQueue, setShowQueue] = useState(false)
 
   const workerRef = useRef(null)
-  const canvasRef = useRef(null)
-  const fgRef     = useRef(null)
   const bgImgRef  = useRef(null)
 
-  const selectedImage = images.find(i => i.id === selectedId) ?? null
-
-  // ── Live canvas redraw ─────────────────────────────────────────────────────
-  const redraw = useCallback(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    const fg  = fgRef.current
-
-    const imgW = fg?.naturalWidth  || 1
-    const imgH = fg?.naturalHeight || 1
-    const outW = resizePreset === 'original' ? imgW : canvasW
-    const outH = resizePreset === 'original' ? imgH : canvasH
-
-    canvas.width  = outW
-    canvas.height = outH
-    ctx.clearRect(0, 0, outW, outH)
-
-    // Background
-    const useBgImg = bgTab === 'image' && bgImgRef.current?.naturalWidth > 0
-    if (useBgImg) {
-      ctx.drawImage(bgImgRef.current, 0, 0, outW, outH)
-    } else if (bgColor !== 'transparent') {
-      ctx.fillStyle = bgColor
-      ctx.fillRect(0, 0, outW, outH)
-    }
-    // transparent → canvas stays clear (checkerboard shown via CSS)
-
-    // Foreground
-    if (fg?.naturalWidth > 0) {
-      if (fillToCanvas) {
-        ctx.drawImage(fg, 0, 0, outW, outH)
-      } else {
-        const s = Math.min(outW / imgW, outH / imgH)
-        const w = imgW * s
-        const h = imgH * s
-        ctx.drawImage(fg, (outW - w) / 2, (outH - h) / 2, w, h)
-      }
-    }
-  // drawTick is included so a new redraw fires after images load
-  }, [bgTab, bgColor, canvasW, canvasH, fillToCanvas, resizePreset, drawTick]) // eslint-disable-line
-
-  useEffect(() => { redraw() }, [redraw])
-
-  // ── Load foreground when selected image URL changes ────────────────────────
-  useEffect(() => {
-    const url = selectedImage?.processedUrl || selectedImage?.originalUrl
-    fgRef.current = null
-    if (!url) { setDrawTick(t => t + 1); return }
-    const img = new window.Image()
-    img.crossOrigin = 'anonymous'
-    img.onload = () => { fgRef.current = img; setDrawTick(t => t + 1) }
-    img.onerror = () => { fgRef.current = null; setDrawTick(t => t + 1) }
-    img.src = url
-  }, [selectedId, selectedImage?.processedUrl, selectedImage?.originalUrl])
-
-  // ── Load background image ──────────────────────────────────────────────────
+  // ── Load background image (used when compositing selected images for download) ──
   useEffect(() => {
     bgImgRef.current = null
-    if (!bgImageUrl) { setDrawTick(t => t + 1); return }
+    if (!bgImageUrl) return
     const img = new window.Image()
     img.crossOrigin = 'anonymous'
-    img.onload = () => { bgImgRef.current = img; setDrawTick(t => t + 1) }
+    img.onload = () => { bgImgRef.current = img }
     img.src = bgImageUrl
   }, [bgImageUrl])
 
@@ -178,9 +118,23 @@ export default function BgRemoverTool() {
       return [...prev, ...newImages]
     })
 
-    // Auto-select first new image if nothing selected
-    setSelectedId(cur => cur ?? newImages[0].id)
+    // Auto-select newly uploaded images so they're ready for a bulk action
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      newImages.forEach(img => next.add(img.id))
+      return next
+    })
     e.target.value = ''
+  }
+
+  // ── Toggle selection ────────────────────────────────────────────────────────
+  function toggleSelect(id) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }
 
   // ── Remove image from list ─────────────────────────────────────────────────
@@ -189,32 +143,14 @@ export default function BgRemoverTool() {
       const img = prev.find(i => i.id === id)
       if (img?.originalUrl?.startsWith('blob:'))  URL.revokeObjectURL(img.originalUrl)
       if (img?.processedUrl?.startsWith('blob:')) URL.revokeObjectURL(img.processedUrl)
-      const next = prev.filter(i => i.id !== id)
-      if (id === selectedId) setSelectedId(next[0]?.id ?? null)
+      return prev.filter(i => i.id !== id)
+    })
+    setSelectedIds(prev => {
+      if (!prev.has(id)) return prev
+      const next = new Set(prev)
+      next.delete(id)
       return next
     })
-  }
-
-  // ── Remove all backgrounds ─────────────────────────────────────────────────
-  function handleRemoveAll() {
-    if (tier === 'normal') {
-      const worker = workerRef.current
-      if (!worker) return
-      setImages(prev => {
-        const eligible = prev.filter(img => img.status === 'pending' || img.status === 'error')
-        eligible.forEach(img => worker.postMessage({ id: img.id, url: img.originalUrl }))
-        return prev.map(img =>
-          eligible.some(e => e.id === img.id)
-            ? { ...img, status: 'processing', progress: 'Queued…' }
-            : img
-        )
-      })
-      return
-    }
-
-    if (!providerStatus[tier]) return
-    const eligible = images.filter(img => img.status === 'pending' || img.status === 'error')
-    if (eligible.length) runServerTierQueue(eligible, tier)
   }
 
   // ── Process single image ───────────────────────────────────────────────────
@@ -336,8 +272,29 @@ export default function BgRemoverTool() {
     await compositeAndDownload(img, `${base}-nobg.png`)
   }
 
-  async function handleDownloadAll() {
-    const done = images.filter(img => img.status === 'done')
+  // ── Bulk actions — scoped to the current selection only ─────────────────────
+  function handleRemoveSelected() {
+    const eligible = images.filter(img =>
+      selectedIds.has(img.id) && (img.status === 'pending' || img.status === 'error')
+    )
+    if (!eligible.length) return
+
+    if (tier === 'normal') {
+      const worker = workerRef.current
+      if (!worker) return
+      eligible.forEach(img => worker.postMessage({ id: img.id, url: img.originalUrl }))
+      setImages(prev => prev.map(img =>
+        eligible.some(e => e.id === img.id) ? { ...img, status: 'processing', progress: 'Queued…' } : img
+      ))
+      return
+    }
+
+    if (!providerStatus[tier]) return
+    runServerTierQueue(eligible, tier)
+  }
+
+  async function handleDownloadSelected() {
+    const done = images.filter(img => selectedIds.has(img.id) && img.status === 'done')
     for (const img of done) {
       const base = img.name.replace(/\.[^.]+$/, '')
       await compositeAndDownload(img, `${base}-nobg.png`)
@@ -376,36 +333,43 @@ export default function BgRemoverTool() {
   }
 
   // ── Derived counts ─────────────────────────────────────────────────────────
-  const doneCount     = images.filter(i => i.status === 'done').length
-  const pendingCount  = images.filter(i => i.status === 'pending' || i.status === 'error').length
-  const processingAny = images.some(i => i.status === 'processing')
+  const doneCount = images.filter(i => i.status === 'done').length
+  const selectedCount = selectedIds.size
+  const selectedEligibleCount = images.filter(img =>
+    selectedIds.has(img.id) && (img.status === 'pending' || img.status === 'error')
+  ).length
+  const selectedDoneCount = images.filter(img => selectedIds.has(img.id) && img.status === 'done').length
 
-  const showCheckerboard = bgColor === 'transparent' && bgTab === 'color'
-
-  function openPanel() { setShowQueue(false); setShowPanel(true) }
-  function openQueue() { setShowPanel(false); setShowQueue(true) }
-  function closeDrawers() { setShowPanel(false); setShowQueue(false) }
+  function openPanel() { setShowPanel(true) }
+  function closeDrawers() { setShowPanel(false) }
 
   return (
     <div className="relative flex h-full overflow-hidden">
 
       {/* Mobile drawer backdrop */}
-      {(showPanel || showQueue) && (
+      {showPanel && (
         <div className="fixed inset-0 z-40 bg-black/60 lg:hidden" onClick={closeDrawers} />
       )}
 
-      {/* ── Background/Resize/HD panel — desktop sidebar, mobile slide-in drawer ── */}
+      {/* ── Background/Resize/HD panel — desktop sidebar, mobile bottom sheet ── */}
       <div
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-[85vw] max-w-[280px] shadow-2xl transition-transform duration-300 ease-out',
-          'lg:static lg:z-auto lg:w-[272px] lg:max-w-none lg:shrink-0 lg:translate-x-0 lg:shadow-none lg:border-r lg:transition-none',
-          showPanel ? 'translate-x-0' : '-translate-x-full'
+          'fixed inset-x-0 bottom-0 z-50 max-h-[75vh] overflow-y-auto rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out',
+          'lg:static lg:inset-auto lg:z-auto lg:w-[272px] lg:max-w-none lg:max-h-none lg:shrink-0 lg:translate-y-0 lg:rounded-none lg:overflow-visible lg:shadow-none lg:border-r lg:transition-none',
+          showPanel ? 'translate-y-0' : 'translate-y-full'
         )}
-        style={{ borderColor: 'var(--lt-divider)' }}
+        style={{ borderColor: 'var(--lt-divider)', backgroundColor: 'var(--lt-surface)' }}
       >
+        {/* Mobile-only: drag handle, tap to close — bottom sheet is easier to reach/dismiss on mobile than a side drawer */}
+        <button
+          onClick={closeDrawers}
+          className="lg:hidden sticky top-0 z-10 flex items-center justify-center pt-2.5 pb-1.5 w-full"
+          style={{ backgroundColor: 'var(--lt-surface)' }}
+          aria-label="Close settings"
+        >
+          <span className="w-10 h-1 rounded-full" style={{ backgroundColor: 'var(--lt-divider-light)' }} />
+        </button>
         <BgRemoverPanel
-          tier={tier}                 setTier={setTier}
-          providerStatus={providerStatus}
           bgTab={bgTab}               setBgTab={setBgTab}
           bgColor={bgColor}           setBgColor={setBgColor}
           activeBgId={activeBgId}
@@ -428,7 +392,7 @@ export default function BgRemoverTool() {
         <div className="shrink-0 flex flex-wrap items-center gap-2 px-3 sm:px-4 py-3"
           style={{ borderBottom: '1px solid var(--lt-divider)', backgroundColor: 'var(--lt-surface)' }}>
 
-          {/* Mobile-only: open settings panel / image queue drawers */}
+          {/* Mobile-only: open settings panel drawer */}
           <div className="flex items-center gap-1.5 lg:hidden">
             <button
               onClick={openPanel}
@@ -437,14 +401,6 @@ export default function BgRemoverTool() {
             >
               <SlidersHorizontal size={13} />
               Edit
-            </button>
-            <button
-              onClick={openQueue}
-              className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold rounded-full transition-opacity hover:opacity-90"
-              style={{ backgroundColor: 'var(--lt-card)', border: '1px solid var(--lt-divider)', color: 'var(--lt-text-primary)' }}
-            >
-              <ImageIcon size={13} />
-              {images.length > 0 ? images.length : 'Images'}
             </button>
           </div>
 
@@ -456,7 +412,7 @@ export default function BgRemoverTool() {
           ) : (
             <span className="order-last sm:order-none w-full sm:w-auto sm:mr-auto text-xs font-semibold" style={{ color: 'var(--lt-text-subtle)' }}>
               {images.length > 0
-                ? `${images.length} image${images.length > 1 ? 's' : ''} · ${doneCount} done`
+                ? `${images.length} image${images.length > 1 ? 's' : ''} · ${doneCount} done${selectedCount ? ` · ${selectedCount} selected` : ''}`
                 : 'No images yet'}
             </span>
           )}
@@ -470,131 +426,57 @@ export default function BgRemoverTool() {
             <input type="file" accept="image/*" multiple className="sr-only" onChange={handleFilesChange} />
           </label>
 
-          <button
-            onClick={handleRemoveAll}
-            disabled={pendingCount === 0 || processingAny}
-            className="flex items-center gap-2 px-3 sm:px-4 py-2 text-white text-sm font-semibold rounded-full hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ backgroundColor: '#3b68f9' }}
-          >
-            {processingAny ? <Loader2 size={14} className="animate-spin" /> : null}
-            <span className="hidden sm:inline">Remove All BG</span>
-            {pendingCount > 0 && (
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>
-                {pendingCount}
-              </span>
-            )}
-          </button>
+          {/* Quality tier + Remove BG stay adjacent — tier only configures this action */}
+          <div className="flex items-center gap-1.5">
+            <TierSelector tier={tier} setTier={setTier} status={providerStatus} />
+
+            <button
+              onClick={handleRemoveSelected}
+              disabled={selectedEligibleCount === 0}
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 text-white text-sm font-semibold rounded-full hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ backgroundColor: '#3b68f9' }}
+            >
+              <Wand2 size={14} />
+              <span className="hidden sm:inline">Remove BG</span>
+              {selectedEligibleCount > 0 && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                  style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>
+                  {selectedEligibleCount}
+                </span>
+              )}
+            </button>
+          </div>
 
           <button
-            onClick={handleDownloadAll}
-            disabled={doneCount === 0}
+            onClick={handleDownloadSelected}
+            disabled={selectedDoneCount === 0}
             className="flex items-center gap-2 px-3 sm:px-4 py-2 text-white text-sm font-semibold rounded-full hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ backgroundColor: 'var(--lt-accent)' }}
           >
             <Download size={14} />
-            <span className="hidden sm:inline">Download All</span>
-            {doneCount > 0 && (
+            <span className="hidden sm:inline">Download</span>
+            {selectedDoneCount > 0 && (
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
                 style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>
-                {doneCount}
+                {selectedDoneCount}
               </span>
             )}
           </button>
         </div>
 
-        {/* Content row: canvas preview + image queue sidebar */}
-        <div className="flex-1 flex overflow-hidden">
-
-          {/* ── Canvas preview ── */}
-          <div className="flex-1 min-w-0 flex items-center justify-center p-4 sm:p-6 lg:p-8 overflow-hidden">
-            {!selectedImage ? (
-              <div className="flex flex-col items-center gap-4">
-                <div className="w-24 h-24 rounded-2xl flex items-center justify-center"
-                  style={{ border: '2px dashed var(--lt-divider-light)', backgroundColor: 'var(--lt-card)' }}>
-                  <ImageIcon size={36} style={{ color: 'var(--lt-divider-light)' }} />
-                </div>
-                <p className="text-sm text-center" style={{ color: 'var(--lt-text-subtle)' }}>
-                  Upload images, then click one<br />in the sidebar to preview
-                </p>
-                <label className="px-5 py-2 text-sm font-semibold rounded-full cursor-pointer text-white hover:opacity-90 transition-opacity"
-                  style={{ backgroundColor: 'var(--lt-accent)' }}>
-                  Choose Images
-                  <input type="file" accept="image/*" multiple className="sr-only" onChange={handleFilesChange} />
-                </label>
-              </div>
-            ) : (
-              <div className="relative flex items-center justify-center w-full h-full">
-                {/* Processing overlay */}
-                {selectedImage.status === 'processing' && (
-                  <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 pointer-events-none">
-                    <Loader2 size={30} className="animate-spin" style={{ color: 'var(--lt-accent)' }} />
-                    <p className="text-sm font-semibold px-3 py-1.5 rounded-lg"
-                      style={{ color: 'var(--lt-text-muted)', backgroundColor: 'var(--lt-card)' }}>
-                      {selectedImage.progress || 'Processing…'}
-                    </p>
-                  </div>
-                )}
-
-                <canvas
-                  ref={canvasRef}
-                  style={{
-                    maxWidth: '100%',
-                    maxHeight: 'calc(100vh - 190px)',
-                    display: 'block',
-                    borderRadius: 10,
-                    boxShadow: '0 20px 60px -10px rgba(0,0,0,0.45)',
-                    // Show checkerboard when transparent bg is active
-                    backgroundImage: showCheckerboard
-                      ? 'repeating-conic-gradient(#b0b0b0 0% 25%, #ffffff 0% 50%)'
-                      : 'none',
-                    backgroundSize: '20px 20px',
-                  }}
-                />
-              </div>
-            )}
-          </div>
-
-          {/* ── Image queue: desktop sidebar, mobile slide-in drawer ── */}
-          <div
-            className={cn(
-              'fixed inset-y-0 right-0 z-50 w-[85vw] max-w-[280px] flex flex-col overflow-hidden shadow-2xl transition-transform duration-300 ease-out',
-              'lg:static lg:z-auto lg:w-[220px] lg:max-w-none lg:shrink-0 lg:translate-x-0 lg:shadow-none lg:transition-none',
-              showQueue ? 'translate-x-0' : 'translate-x-full'
-            )}
-            style={{ borderLeft: '1px solid var(--lt-divider)', backgroundColor: 'var(--lt-surface)' }}
-          >
-            <div className="px-3 py-2.5 shrink-0 flex items-center justify-between"
-              style={{ borderBottom: '1px solid var(--lt-divider)' }}>
-              <span className="text-[11px] font-bold uppercase tracking-wider"
-                style={{ color: 'var(--lt-text-subtle)' }}>
-                Images
-              </span>
-              <div className="flex items-center gap-2">
-                {images.length > 0 && (
-                  <span className="text-[10px]" style={{ color: 'var(--lt-text-subtle)' }}>
-                    {images.length}
-                  </span>
-                )}
-                <button
-                  onClick={() => setShowQueue(false)}
-                  className="lg:hidden p-1 rounded-[5px] transition-colors"
-                  style={{ color: 'var(--lt-text-subtle)' }}
-                  title="Close"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            </div>
-            <ImageQueue
-              images={images}
-              selectedId={selectedId}
-              onSelect={(id) => { setSelectedId(id); setShowQueue(false) }}
-              onRemove={handleRemoveImage}
-              onDownload={handleDownloadImage}
-              onProcess={handleProcessImage}
-            />
-          </div>
+        {/* ── Image grid: check tiles to select — Remove BG / Download act on the selection only ── */}
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+          <ImageQueue
+            images={images}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+            onRemove={handleRemoveImage}
+            onDownload={handleDownloadImage}
+            onProcess={handleProcessImage}
+            bgTab={bgTab}
+            bgColor={bgColor}
+            bgImageUrl={bgImageUrl}
+          />
         </div>
       </div>
     </div>

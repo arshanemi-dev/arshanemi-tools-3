@@ -1,6 +1,6 @@
 'use client'
 
-import { X, Download, Loader2, CheckCircle2, AlertCircle, Clock, Wand2, RefreshCw } from 'lucide-react'
+import { X, Download, Loader2, CheckCircle2, AlertCircle, Clock, Wand2, RefreshCw, Check } from 'lucide-react'
 
 function CheckerboardBg() {
   return (
@@ -39,7 +39,7 @@ function StatusBadge({ status, message }) {
   return null
 }
 
-export default function ImageQueue({ images, selectedId, onSelect, onRemove, onDownload, onProcess }) {
+export default function ImageQueue({ images, selectedIds, onToggleSelect, onRemove, onDownload, onProcess, bgTab, bgColor, bgImageUrl }) {
   if (!images.length) return (
     <div className="flex-1 flex flex-col items-center justify-center gap-3 p-4">
       <div className="w-14 h-14 rounded-xl flex items-center justify-center"
@@ -58,13 +58,20 @@ export default function ImageQueue({ images, selectedId, onSelect, onRemove, onD
   )
 
   return (
-    <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-2">
+    <div className="flex-1 overflow-y-auto p-3 sm:p-4">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
       {images.map(img => {
-        const isSelected = img.id === selectedId
+        const isSelected = selectedIds.has(img.id)
+        // Selected + already-processed tiles preview the chosen background live,
+        // so applied settings are visible on the grid itself (not just after download).
+        const previewBg = isSelected && img.processedUrl && !(bgTab === 'color' && bgColor === 'transparent')
+        const previewBgStyle = bgTab === 'image' && bgImageUrl
+          ? { backgroundImage: `url(${bgImageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+          : { backgroundColor: bgColor }
         return (
           <div
             key={img.id}
-            onClick={() => onSelect(img.id)}
+            onClick={() => onToggleSelect(img.id)}
             className="rounded-[10px] overflow-hidden cursor-pointer transition-all"
             style={{
               border: isSelected
@@ -76,13 +83,22 @@ export default function ImageQueue({ images, selectedId, onSelect, onRemove, onD
           >
             {/* Thumbnail */}
             <div className="relative overflow-hidden" style={{ aspectRatio: '16/9' }}>
-              {img.processedUrl && <CheckerboardBg />}
+              {img.processedUrl && (previewBg ? <div className="absolute inset-0" style={previewBgStyle} /> : <CheckerboardBg />)}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={img.processedUrl || img.originalUrl}
                 alt={img.name}
                 className="relative w-full h-full object-contain"
               />
+
+              {/* Selection checkbox */}
+              <div className="absolute top-1.5 left-1.5 z-10 w-5 h-5 rounded-full flex items-center justify-center"
+                style={{
+                  backgroundColor: isSelected ? 'var(--lt-accent)' : 'rgba(0,0,0,0.45)',
+                  border: isSelected ? 'none' : '1.5px solid rgba(255,255,255,0.85)',
+                }}>
+                {isSelected && <Check size={12} className="text-white" strokeWidth={3} />}
+              </div>
 
               {img.status === 'processing' && (
                 <div className="absolute inset-0 flex items-center justify-center"
@@ -141,6 +157,7 @@ export default function ImageQueue({ images, selectedId, onSelect, onRemove, onD
           </div>
         )
       })}
+    </div>
     </div>
   )
 }
