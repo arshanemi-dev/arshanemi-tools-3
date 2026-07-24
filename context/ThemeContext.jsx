@@ -1,10 +1,16 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState } from 'react'
-import { getFullTheme, saveFullTheme, applyFullTheme, DEFAULT_FULL_THEME } from '@/lib/localStore'
+import { applyFullTheme, DEFAULT_FULL_THEME, getFullTheme as getCachedTheme, saveFullTheme as cacheTheme } from '@/lib/localStore'
+import { getFullTheme as fetchStoredTheme, saveFullTheme as persistTheme } from '@/lib/dataStore'
 
 const IS_CONNECT  = process.env.NEXT_PUBLIC_IS_CONNECT?.toLowerCase() === 'true'
-const ADMIN_API   = process.env.NEXT_PUBLIC_ADMIN_API_URL || ''
+// NEXT_PUBLIC_ADMIN_URL, not _ADMIN_API_URL — this app (unlike tools-1) uses
+// a single admin-panel URL for everything (auth, billing, theme); the old
+// _API_ variant was never defined here, so this fetch was silently resolving
+// to a same-origin (dead) route and falling through to hardcoded CSS
+// defaults on every load despite IS_CONNECT=true.
+const ADMIN_API   = process.env.NEXT_PUBLIC_ADMIN_URL || ''
 const CACHE_KEY   = 'lt-theme-cache'
 const CACHE_TTL   = 10 * 60 * 1000 // 10 min
 
@@ -43,17 +49,33 @@ export function ThemeProvider({ children }) {
           // Network down — fall through to CSS defaults
         })
     } else {
-      const saved = getFullTheme()
-      setThemeState(saved)
-      applyFullTheme(saved)
+      // Instant paint from this browser's cache to avoid a flash, then
+      // reconcile with the Vercel Blob copy — same store companies/users
+      // use, so a theme saved from one browser shows up in another.
+      const cached = getCachedTheme()
+      setThemeState(cached)
+      applyFullTheme(cached)
+
+      fetchStoredTheme()
+        .then(stored => {
+          setThemeState(stored)
+          applyFullTheme(stored)
+          cacheTheme(stored)
+        })
+        .catch(() => {
+          // Blob unreachable — keep the cached theme already applied
+        })
     }
   }, [])
 
   function setTheme(next) {
     setThemeState(next)
     if (!IS_CONNECT) {
-      saveFullTheme(next)
+      cacheTheme(next)
       applyFullTheme(next)
+      persistTheme(next).catch(() => {
+        // Best-effort — UI already reflects the change locally
+      })
     }
   }
 

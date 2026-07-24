@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Lock, Eye, EyeOff } from 'lucide-react'
+import { saveAuthTokens } from '@/lib/tokenStore'
 
 export default function LoginScreen({ onLogin }) {
   const [username, setUsername] = useState('')
@@ -21,11 +22,13 @@ export default function LoginScreen({ onLogin }) {
         body:    JSON.stringify({ username, password }),
       })
       const data = await res.json()
-      if (res.ok && data.token) {
-        localStorage.setItem('lt_auth_token', data.token)
-        if (data.user) {
-          localStorage.setItem('lt_auth_user', JSON.stringify(data.user))
-        }
+      if (res.ok && data.accessToken) {
+        saveAuthTokens({
+          accessToken:  data.accessToken,
+          refreshToken: data.refreshToken,
+          expiresIn:    data.expiresIn ?? 900,
+          user:         data.user,
+        })
         onLogin(data.user ?? null)
       } else {
         setError(data.error || 'Invalid credentials')

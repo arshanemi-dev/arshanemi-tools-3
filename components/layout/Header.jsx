@@ -2,8 +2,9 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Settings, LayoutDashboard, LogOut } from 'lucide-react'
+import { Settings, LayoutDashboard, LogOut, Wand2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { clearAuthTokens } from '@/lib/tokenStore'
 
 const IS_CONNECT = process.env.NEXT_PUBLIC_IS_CONNECT === 'true'
 const ADMIN_URL  = process.env.NEXT_PUBLIC_ADMIN_URL  || ''
@@ -13,8 +14,7 @@ const BASE_NAV = [
 ]
 
 function handleLogout() {
-  localStorage.removeItem('lt_auth_token')
-  localStorage.removeItem('lt_auth_user')
+  clearAuthTokens()
   window.location.reload()
 }
 
@@ -29,6 +29,9 @@ export default function Header({ authUser }) {
     <header className="sticky top-0 z-30 h-14 flex items-center gap-2 border-b px-3 sm:px-4" style={{ borderColor: 'var(--lt-divider)', backgroundColor: 'color-mix(in srgb, var(--lt-bg-base) 90%, transparent)', backdropFilter: 'blur(12px)' }}>
       <div className="flex items-center gap-3 flex-1 min-w-0">
         <Link href="/bg-remover" className="flex items-center gap-2 min-w-0">
+          <div className="w-8 h-8 rounded-[8px] bg-[var(--lt-accent-muted)] border border-[var(--lt-accent)]/40 flex items-center justify-center text-[var(--lt-accent-light)] shrink-0">
+            <Wand2 size={16} />
+          </div>
           <span className="font-semibold text-sm tracking-tight truncate" style={{ color: 'var(--lt-text-primary)' }}>
             ArshaNemi
             <span style={{ color: 'var(--lt-accent)' }}>

@@ -7,7 +7,8 @@ import {
   Moon, Sun, Type, Sliders,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { DEFAULT_FULL_THEME } from '@/lib/localStore'
+import { getStoredUser, authFetch } from '@/lib/tokenStore'
+import { useTheme } from '@/context/ThemeContext'
 
 // ── Status badge ──────────────────────────────────────────────────────────────
 
@@ -63,26 +64,20 @@ export default function ConnectedModeSettings() {
   const [subscription,  setSubscription]  = useState(null)
   const [subLoading,    setSubLoading]    = useState(true)
   const [subError,      setSubError]      = useState('')
-  const [theme,         setTheme]         = useState(DEFAULT_FULL_THEME)
+  // Reads whatever ThemeContext actually applied (synced from the admin
+  // theme API in connected mode) instead of independently re-reading
+  // localStorage — that used to read the disconnected-mode key
+  // ('lt_theme_full'), which ThemeContext's connected branch never writes to
+  // (it caches to sessionStorage['lt-theme-cache'] instead), so this summary
+  // silently showed hardcoded defaults even when the real synced theme
+  // differed.
+  const { theme } = useTheme()
 
   useEffect(() => {
-    // Read stored user
-    try {
-      const u = JSON.parse(localStorage.getItem('lt_auth_user') ?? 'null')
-      setAuthUser(u)
-    } catch { /* ignore */ }
-
-    // Read stored theme
-    try {
-      const t = JSON.parse(localStorage.getItem('lt_theme_full') ?? 'null')
-      if (t) setTheme(t)
-    } catch { /* ignore */ }
+    setAuthUser(getStoredUser())
 
     // Fetch subscription from admin API via proxy
-    const token = localStorage.getItem('lt_auth_token') || ''
-    fetch('/api/subscription', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    authFetch('/api/subscription')
       .then(r => r.json())
       .then(data => {
         if (data.error) setSubError(data.error)

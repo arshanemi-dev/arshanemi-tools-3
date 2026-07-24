@@ -5,9 +5,13 @@ import { Upload, Download, Loader2, SlidersHorizontal, Wand2 } from 'lucide-reac
 import BgRemoverPanel from './BgRemoverPanel'
 import ImageQueue from './ImageQueue'
 import TierSelector from './TierSelector'
+import BillingGateModal from '@/components/billing/BillingGateModal'
+import { useToast } from '@/components/layout/ToastProvider'
 import { cn } from '@/lib/utils'
 import { useProviderStatus } from '@/hooks/useProviderStatus'
 import { friendlyMessageFor } from '@/lib/bgRemoveMessages'
+import { runBillingGate } from '@/lib/toolBilling'
+import { TOOL_SLUG as BG_REMOVER_SLUG, featureForTier } from '@/lib/toolFeatures'
 
 const PRESET_DIMS = {
   square:    { w: 1080, h: 1080 },
@@ -42,6 +46,14 @@ export default function BgRemoverTool() {
 
   const workerRef = useRef(null)
   const bgImgRef  = useRef(null)
+  const toast = useToast()
+
+  // Billing gate state — see lib/toolBilling.js. Only medium/advanced/pro
+  // tiers ever reach this (normal runs free, client-side, never gated).
+  const [billingGate, setBillingGate] = useState(null) // { reason, data, retry } | null
+  function openBillingModal(reason, data, retry) {
+    setBillingGate({ reason, data, retry })
+  }
 
   // ── Load background image (used when compositing selected images for download) ──
   useEffect(() => {
@@ -154,7 +166,7 @@ export default function BgRemoverTool() {
   }
 
   // ── Process single image ───────────────────────────────────────────────────
-  function handleProcessImage(id) {
+  async function handleProcessImage(id) {
     if (tier === 'normal') {
       const worker = workerRef.current
       if (!worker) return
@@ -172,6 +184,10 @@ export default function BgRemoverTool() {
     if (!providerStatus[tier]) return
     const img = images.find(i => i.id === id)
     if (!img || (img.status !== 'pending' && img.status !== 'error')) return
+
+    const gate = await runBillingGate({ toolSlug: BG_REMOVER_SLUG, featureApiIdentifier: featureForTier(tier) })
+    if (gate.status === 'blocked') { openBillingModal(gate.reason, gate.data, () => handleProcessImage(id)); return }
+
     runServerTierQueue([img], tier)
   }
 
@@ -273,7 +289,10 @@ export default function BgRemoverTool() {
   }
 
   // ── Bulk actions — scoped to the current selection only ─────────────────────
-  function handleRemoveSelected() {
+  // Batch charges a flat fee for this one action, not scaled per image —
+  // matches how /api/wallet/deduct already works (a flat, server-controlled
+  // coinCost, no quantity parameter).
+  async function handleRemoveSelected() {
     const eligible = images.filter(img =>
       selectedIds.has(img.id) && (img.status === 'pending' || img.status === 'error')
     )
@@ -290,6 +309,10 @@ export default function BgRemoverTool() {
     }
 
     if (!providerStatus[tier]) return
+
+    const gate = await runBillingGate({ toolSlug: BG_REMOVER_SLUG, featureApiIdentifier: featureForTier(tier) })
+    if (gate.status === 'blocked') { openBillingModal(gate.reason, gate.data, () => handleRemoveSelected()); return }
+
     runServerTierQueue(eligible, tier)
   }
 
@@ -479,6 +502,13 @@ export default function BgRemoverTool() {
           />
         </div>
       </div>
+
+      <BillingGateModal
+        gate={billingGate}
+        onClose={() => setBillingGate(null)}
+        onRetry={() => { const retry = billingGate?.retry; setBillingGate(null); retry?.() }}
+        toast={toast}
+      />
     </div>
   )
 }

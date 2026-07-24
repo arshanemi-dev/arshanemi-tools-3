@@ -6,10 +6,10 @@ import {
   getUsers, getActiveUserId, getActiveUser,
   getCompanies,
 } from '@/lib/dataStore'
-import ProfilePanel from './local/ProfilePanel'
-import UsersPanel   from './local/UsersPanel'
-import ThemePanel   from './local/ThemePanel'
-import CompanyPanel from './local/CompanyPanel'
+import ProfilePanel   from './local/ProfilePanel'
+import UsersPanel     from './local/UsersPanel'
+import ThemePanel     from './local/ThemePanel'
+import CompanyPanel   from './local/CompanyPanel'
 import { cn } from '@/lib/utils'
 
 const TABS = [

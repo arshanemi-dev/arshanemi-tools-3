@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Settings, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { clearAuthTokens } from '@/lib/tokenStore'
 
 const NAV_ITEMS = [
   { href: '/settings', label: 'Settings', icon: Settings },
@@ -30,8 +31,7 @@ function ShortcutBtn({ isActive, icon: Icon, label }) {
 }
 
 function handleLogout() {
-  localStorage.removeItem('lt_auth_token')
-  localStorage.removeItem('lt_auth_user')
+  clearAuthTokens()
   window.location.reload()
 }
 
