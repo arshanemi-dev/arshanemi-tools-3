@@ -65,7 +65,7 @@ async function main() {
     process.exit(1)
   }
 
-  const toolsName = process.env.TOOLS_NAME || 'arshanemi-tools-3'
+  const toolsName = process.env.TOOLS_NAME || 'arshanemi-tools-local'
   console.log(`Seeding Vercel Blob namespace: database/${toolsName}/\n`)
 
   let failed = false

@@ -1,12 +1,20 @@
 {
   "users": [
     {
-      "id": "usr_2prv5heu",
-      "name": "fcghrd",
-      "email": "arsh4anemi@gmail.com",
+      "id": "usr_6usud2r5",
+      "name": "Admin",
+      "email": "admin@example.com",
       "role": "admin",
-      "companyId": "co_8uf3d7ff",
-      "createdAt": "2026-07-01T05:45:33.757Z"
+      "companyId": "co_9d0asqgt",
+      "createdAt": "2026-07-09T06:05:00.158Z"
+    },
+    {
+      "id": "usr_xk0ew6qy",
+      "name": "Pratham",
+      "email": "pratham@gmail.com",
+      "role": "user",
+      "companyId": "co_9d0asqgt",
+      "createdAt": "2026-07-16T07:17:10.160Z"
     }
   ]
 }
